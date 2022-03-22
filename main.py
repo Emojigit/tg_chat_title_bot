@@ -197,7 +197,7 @@ async def normaltitle(event):
                     title = data[str(chat.id)]
                 except IndexError:
                     await event.respond("No record and no args! Use /setnormaltitle <title>!")
-                if title != "":的
+                if title != "":
                     await event.respond("Changing title to `{}`...".format(title))
                     await client(functions.channels.EditTitleRequest(
                         #chat_id=chat.id,
