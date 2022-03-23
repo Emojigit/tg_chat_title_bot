@@ -16,6 +16,7 @@ except ImportError:
 import asyncio, json
 from telethon import TelegramClient, functions, types, events
 from telethon.errors import *
+from telethon.tl.functions.channels import LeaveChannelRequest
 
 try:
     dataF = open("data.json","r+")
@@ -35,28 +36,35 @@ def save():
     dataF.truncate()
     print("Saving done!")
 
+def setV(chan,key,val):
+    try:
+        currD = data[str(chan)]
+    except KeyError:
+        currD = {}
+    if type(currD) == str:
+        currD = {"title":currD}
+    if val == None:
+        currD.pop(key,None)
+    else:
+        currD[str(key)] = val
+    data[str(chan)] = currD
+    save()
+
+def getV(chan,key):
+    try:
+        currD = data[str(chan)]
+    except KeyError:
+        return None
+    if type(currD) == str:
+        return currD if str(key) == "title" else None
+    try:
+        return currD[str(key)]
+    except KeyError:
+        return None
+
 bot = TelegramClient('bot', config.api_id, config.api_hash).start(bot_token=config.bot_token)
 
 client = bot # For easier copying examples XD
-"""
-asyncio.run(client(functions.bots.SetBotCommandsRequest(
-    scope=types.BotCommandScopeDefault(),
-    lang_code='en',
-    commands=[types.BotCommand(
-        command='start',
-        description='Show help of this bot'
-    ),types.BotCommand(
-        command='setnormaltitle',
-        description='Set the title that\'s used normally'
-    ),types.BotCommand(
-        command='settitle',
-        description='Set the temporary title (supply no args to set to the default one)'
-    ),types.BotCommand(
-        command='normaltitle',
-        description='Set the default title back'
-    )]
-)))
-"""
 
 helps = "\n".join([
     "Hi! I'm the group title bot. Use me to configure temporay group title for fun!",
@@ -65,6 +73,8 @@ helps = "\n".join([
     "/setnormaltitle : Set the title that's used normally",
     "/settitle : Set the temporary title (supply no args to set to the default one)",
     "/normaltitle : Set the default title back",
+    "/conf : Raw config interface",
+    "/dumpconf : dump the configs in this group",
     "I can only be used by admins with the right \"Change group informations\"."
 ])
 
@@ -127,13 +137,9 @@ async def setnormaltitle(event):
             else:
                 try:
                     title = event.text.split(" ",1)[1]
-                    await event.respond("Changing title to `{}`...".format(event.text.split(" ",1)[1]))
-                    data[str(chat.id)] = event.text.split(" ",1)[1]
-                    print(data)
-                    save()
-                    #await client(functions.messages.EditChatTitleRequest(
+                    await event.respond("Changing title to `{}`...".format(title))
+                    setV(chat.id,"title",title)
                     await client(functions.channels.EditTitleRequest(
-                        #chat_id=chat.id,
                         channel=chat.id,
                         title=title
                     ))
@@ -163,10 +169,10 @@ async def settitle(event):
                 try:
                     title = event.text.split(" ",1)[1]
                 except IndexError:
-                    try:
-                        title = data[str(chat.id)]
-                    except IndexError:
+                    title = getV(chat.id,"title")
+                    if title == None:
                         await event.respond("No record and no args! Use /settitle <title>!")
+                        title == ""
                 if title != "":
                     await event.respond("Changing title to `{}`...".format(title))
                     await client(functions.channels.EditTitleRequest(
@@ -193,14 +199,12 @@ async def normaltitle(event):
             if not privs.change_info:
                 await event.respond("You cannot do that!")
             else:
-                try:
-                    title = data[str(chat.id)]
-                except IndexError:
-                    await event.respond("No record and no args! Use /setnormaltitle <title>!")
-                if title != "":的
+                title = getV(chat.id,"title")
+                if title == None:
+                    await event.respond("No record! Use /setnormaltitle <title>!")
+                else:
                     await event.respond("Changing title to `{}`...".format(title))
                     await client(functions.channels.EditTitleRequest(
-                        #chat_id=chat.id,
                         channel=chat.id,
                         title=title
                     ))
@@ -210,6 +214,60 @@ async def normaltitle(event):
     finally:
         raise events.StopPropagation
 
+allow_confs = ["title"]
+
+@bot.on(events.NewMessage(pattern='/conf'))
+async def conf(event):
+    chat = event.chat
+    user = event.sender
+    try:
+        privs = await client.get_permissions(chat, user)
+        mypriv = await client.get_permissions(chat, await client.get_me())
+        if not mypriv.change_info:
+            await event.respond("I cannot do that! Contact the group admins!")
+        else:
+            if not privs.change_info:
+                await event.respond("You cannot do that!")
+            else:
+                args = event.text.split(" ",2)
+                if len(args) == 1:
+                    await event.respond("Allowed config keys: " + ", ".join(allow_confs))
+                else:
+                    key = args[1]
+                    if args[1] in allow_confs:
+                        if len(args) == 2:
+                            val = getV(chat.id,key)
+                            await event.respond("{} = {}".format(key,(val if val != None else "<not set>")))
+                        else:
+                            val = args[2]
+                            if val == "None": val = None
+                            setV(chat.id,key,val)
+                            await event.respond("{} = {}".format(key,(val if val != None else "<not set>")))
+                    else:
+                        await event.respond("Invalid config key! Allowed keys: " + ", ".join(allow_confs))
+    except ValueError:
+        await event.respond("You're not in a channel!")
+    finally:
+        raise events.StopPropagation
+
+@bot.on(events.NewMessage(pattern='/dumpconf'))
+async def conf(event):
+    chat = event.chat
+    try:
+        await event.respond(str(data[str(chat.id)]))
+    except KeyError:
+        await event.respond("{}")
+    finally:
+        raise events.StopPropagation
+
+@bot.on(events.ChatAction)
+async def chataction(event):
+    chat = event.chat
+    me = await client.get_me()
+    if event.user_kicked and event.user_id == me.id:
+        data.pop(str(chat.id),None)
+        save()
+    raise events.StopPropagation
 
 bot.run_until_disconnected()
 
