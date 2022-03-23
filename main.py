@@ -13,7 +13,7 @@ except ImportError:
         print("config.example.py not found, make sure you're in the script's directory!")
     exit(1)
 
-import asyncio, json
+import asyncio, json, random
 from telethon import TelegramClient, functions, types, events
 from telethon.errors import *
 from telethon.tl.functions.channels import LeaveChannelRequest
@@ -75,12 +75,19 @@ helps = "\n".join([
     "/normaltitle : Set the default title back",
     "/conf : Raw config interface",
     "/dumpconf : dump the configs in this group",
+    "/ping : Pong!",
     "I can only be used by admins with the right \"Change group informations\"."
 ])
 
 @bot.on(events.NewMessage(pattern='/start'))
 async def start(event):
     await event.respond(helps)
+    raise events.StopPropagation
+
+pongs = ['Pong!','Have Fun!','Ping Pong!','Table Tennis!','Whiff-Whaff!','Prepare your Table Tennis Balls!','404 Responce not found (joking)']
+@bot.on(events.NewMessage(pattern='/ping'))
+async def ping(event):
+    await event.respond(random.choice(pongs))
     raise events.StopPropagation
 
 @bot.on(events.NewMessage(pattern='/myid'))
