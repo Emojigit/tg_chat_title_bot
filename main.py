@@ -79,6 +79,25 @@ helps = "\n".join([
     "I can only be used by admins with the right \"Change group informations\"."
 ])
 
+async def Ctitle(event,title):
+    chat = event.chat
+    msgBase = "Changing title to `{}`...".format(title)
+    msgEnd = msgBase + " {}"
+    msg = await event.respond(msgBase)
+    try:
+        await client(functions.channels.EditTitleRequest(
+            channel=chat.id,
+            title=title
+        ))
+    except ChatNotModifiedError:
+        await client.edit_message(msg, msgEnd.format("Still the same!"))
+    except ChatAdminRequiredError:
+        await client.edit_message(msg, msgEnd.format("How come I still cannot do that!"))
+    except ChannelInvalidError:
+        await client.edit_message(msg, msgEnd.format("Am I really in a channel?"))
+    else:
+        await client.edit_message(msg, msgEnd.format("Done!"))
+
 @bot.on(events.NewMessage(pattern='/start'))
 async def start(event):
     await event.respond(helps)
@@ -146,11 +165,7 @@ async def setnormaltitle(event):
                     title = event.text.split(" ",1)[1]
                     await event.respond("Changing title to `{}`...".format(title))
                     setV(chat.id,"title",title)
-                    await client(functions.channels.EditTitleRequest(
-                        channel=chat.id,
-                        title=title
-                    ))
-                    await event.respond("Done!")
+                    await Ctitle(event,title)
                 except IndexError:
                     await event.respond("Use /setnormaltitle <title>!")
 
@@ -181,13 +196,7 @@ async def settitle(event):
                         await event.respond("No record and no args! Use /settitle <title>!")
                         title == ""
                 if title != "":
-                    await event.respond("Changing title to `{}`...".format(title))
-                    await client(functions.channels.EditTitleRequest(
-                        #chat_id=chat.id,
-                        channel=chat.id,
-                        title=title
-                    ))
-                    await event.respond("Done!")
+                    await Ctitle(event,title)
     except ValueError:
         await event.respond("You're not in a channel!")
     finally:
@@ -210,12 +219,7 @@ async def normaltitle(event):
                 if title == None:
                     await event.respond("No record! Use /setnormaltitle <title>!")
                 else:
-                    await event.respond("Changing title to `{}`...".format(title))
-                    await client(functions.channels.EditTitleRequest(
-                        channel=chat.id,
-                        title=title
-                    ))
-                    await event.respond("Done!")
+                    await Ctitle(event,title)
     except ValueError:
         await event.respond("You're not in a channel!")
     finally:
